@@ -1,0 +1,46 @@
+{
+  "model": "LightGBM (pdm_lib.make_model)",
+  "target": "정비 뒤 30일 안 재고장(사후 · 긴급정비) 여부",
+  "trained_on": "2023-01-01 ~ 2024-12-31 (2,346건)",
+  "features": [
+    "equipment_type",
+    "maintenance_type",
+    "fault_category",
+    "equipment_age_years",
+    "severity",
+    "downtime_hours",
+    "repair_duration_hours",
+    "parts_replaced_count",
+    "maintenance_cost",
+    "maintenance_success",
+    "cumulative_operating_hours",
+    "days_since_last_maintenance",
+    "is_first_maintenance",
+    "fail_count_90d",
+    "days_since_last_failure",
+    "hours_since_last_pm"
+  ],
+  "excluded": {
+    "availability_rate": "그 달 전체 가동률 — 예측 시점에는 알 수 없음(누수)",
+    "fault_code": "50종 — fault_category로 대신함",
+    "equipment_id · unit_code": "식별자"
+  },
+  "capacity_per_month": 20,
+  "threshold": 0.26,
+  "threshold_rule": "검증 기간(2024-07 ~ 12) 비용 최소: 놓친 재고장 300만원, 재점검 60만원",
+  "test_2025": {
+    "pr_auc": 0.774,
+    "roc_auc": 0.88,
+    "base_rate": 0.274,
+    "top20_hits": {
+      "model": 97.0,
+      "oldest": 50.0,
+      "random": 32.5
+    }
+  },
+  "limits": [
+    "교육용 가상 데이터로 학습했다. 실제 장비에 그대로 쓰지 않는다.",
+    "확률은 '정비 뒤 30일' 기준이다. 정비 기록이 없는 장비는 판단하지 않는다.",
+    "최종 판단은 정비 담당자가 한다. 모델은 점검 순서를 정하는 참고 자료다."
+  ]
+}
