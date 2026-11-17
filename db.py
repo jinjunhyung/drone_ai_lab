@@ -37,10 +37,13 @@ requests_table = Table(
 )
 
 _engines: dict[str, Engine] = {}
+_fallback_active: bool = False
 
 
 def database_url() -> str:
     """연결 주소. secrets.toml → st.secrets → 환경 변수 → 기본 SQLite 순서로 찾는다."""
+    if _fallback_active:
+        return DEFAULT_URL
     secrets_path = ROOT / ".streamlit" / "secrets.toml"
     if secrets_path.exists():
         try:
@@ -63,6 +66,8 @@ def database_url() -> str:
 def backend_name(url: str | None = None) -> str:
     """화면에 보일 저장소 이름: 'SQLite (내 PC 파일)' 또는 'Postgres (Supabase 등)'."""
     url = url or database_url()
+    if _fallback_active:
+        return "SQLite (Postgres 인증 실패로 임시 전환됨 — Secrets 비밀번호 확인)"
     return "SQLite (내 PC 파일)" if url.startswith("sqlite") else "Postgres (Supabase 등)"
 
 
@@ -84,8 +89,13 @@ def get_engine(url: str | None = None) -> Engine:
 
 
 def init_db(url: str | None = None) -> None:
-    """표가 없으면 만든다. 있으면 그대로 둔다."""
-    metadata.create_all(get_engine(url))
+    """표가 없으면 만든다. Postgres 연결(비밀번호 등) 실패 시 앱이 죽지 않도록 SQLite로 안전 폴백한다."""
+    global _fallback_active
+    try:
+        metadata.create_all(get_engine(url))
+    except Exception:
+        _fallback_active = True
+        metadata.create_all(get_engine(DEFAULT_URL))
 
 
 def add_request(equipment_code: str, title: str, priority: str, requester_role: str,

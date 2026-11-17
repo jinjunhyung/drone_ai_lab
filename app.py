@@ -11,6 +11,7 @@ import pandas as pd
 import streamlit as st
 
 import db
+import rag
 from pdm_lib import (ART, FEATURE_KO, FEATURES, MONTH_CSV, TARGET, contributions, load_history, load_model,
                      score_month)
 
@@ -150,6 +151,49 @@ with tab6:
         f"재고장 확률 **{r6['확률(%)']}%** ({'위험 높음' if r6['prob'] >= thr else '관찰 대상'}) | "
         f"핵심 요인: `{r6['reasons']}`"
     )
+    st.info(auto_note)
+
+    st.markdown("#### 📚 부대 규정 · 보급 기준 질문하기 (RAG)")
+    st.caption("정비 부품 보급 절차 · 신청 기한 · 반납/분실 · 안전수칙 · 당직근무수칙 등 규정 문서를 검색해 근거 조항으로 답합니다.")
+    preset_questions = [
+        "직접 입력",
+        "긴급 수리 부품 보급 신청은 누구 승인을 받아야 해?",
+        "물품 보급 신청 기한과 정기 보급 요일은 언제야?",
+        "사용하지 않은 부품 반납 기한과 분실 시 보고 절차는?",
+        "작업 전 안전 원칙과 전기·화재 발생 시 대응 요령은?",
+        "당직 근무 시간과 이상 발생 시 보고 체계는?",
+    ]
+    q_col1, q_col2 = st.columns([1.2, 2])
+    with q_col1:
+        preset = st.selectbox("자주 묻는 규정 선택", preset_questions, index=1, key="rag_preset")
+    with q_col2:
+        default_q = ("긴급 수리 부품 보급 신청은 누구 승인을 받아야 해?"
+                     if r6["maintenance_type"] == "긴급정비" or r6["prob"] >= thr
+                     else "물품 보급 신청 기한과 정기 보급 요일은 언제야?")
+        rag_query = st.text_input(
+            "규정 질문 입력",
+            value=(default_q if preset == "직접 입력" else preset),
+            key="rag_query_input",
+        )
+
+    rag_res = rag.answer_question(rag_query, k=3) if rag_query.strip() else None
+    if rag_res:
+        st.markdown(rag_res["answer"])
+        with st.expander("🔍 검색된 규정 근거 조각 (Top-3 유사도) 및 프롬프트 보기"):
+            hits_df = pd.DataFrame([
+                {
+                    "순위": i + 1,
+                    "출처 문서": h["source"],
+                    "조항 번호": f"#{h['chunk_id']}",
+                    "유사도": round(h["score"], 3),
+                    "규정 본문": h["text"],
+                }
+                for i, h in enumerate(rag_res["hits"])
+            ])
+            st.dataframe(hits_df, width="stretch", hide_index=True)
+            st.text(rag_res["prompt"])
+
+    st.markdown("#### 📝 Postgres 저장소에 정비 요청 등록")
 
     with st.form("add_request_form", clear_on_submit=False):
         f_col1, f_col2 = st.columns([1, 2])
